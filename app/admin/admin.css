@@ -1074,3 +1074,26 @@ body {
 
 /* Misc */
 .hidden { display: none !important; }
+
+.ag-slot-note {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 9px;
+  opacity: 0.8;
+  margin-top: 2px;
+  font-weight: 400;
+  max-width: 90%;
+  line-height: 1.2;
+}
+
+.ag-slot-closed .ag-slot-note {
+  color: var(--gray-400);
+}
+
+.dag-closed .ag-slot-note {
+  color: var(--gray-600);
+}

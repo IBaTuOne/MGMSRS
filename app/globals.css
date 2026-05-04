@@ -1279,7 +1279,6 @@ textarea {
 /* ===================== AUTH PAGES ===================== */
 .auth-page {
   min-height: 100vh;
-  background: var(--gray-50);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1288,10 +1287,13 @@ textarea {
   overflow-y: auto;
   overflow-x: hidden;
   transition: var(--transition);
+  /* Reference design: Dark gradient background */
+  background: linear-gradient(135deg, #0f1521 0%, #1a2235 50%, #0a1e0f 100%) !important;
 }
 
-.auth-page[data-theme="dark"] {
-  background: linear-gradient(135deg, var(--dark) 0%, #1A2235 50%, #0A1E0F 100%);
+/* Theme overrides disabled for auth pages to maintain reference look */
+[data-theme="dark"] .auth-page {
+  background: linear-gradient(135deg, #0f1521 0%, #1a2235 50%, #0a1e0f 100%) !important;
 }
 
 /* Admin specific hardcoded dark theme */
@@ -1310,8 +1312,10 @@ textarea {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at 20% 50%, rgba(227, 10, 23, 0.05) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 50%, rgba(26, 125, 60, 0.05) 0%, transparent 50%);
+  /* Reference glows */
+  background: 
+    radial-gradient(at 20% 50%, rgba(227, 10, 23, 0.1) 0%, transparent 50%),
+    radial-gradient(at 80% 50%, rgba(26, 125, 60, 0.1) 0%, transparent 50%) !important;
   pointer-events: none;
 }
 
@@ -1333,14 +1337,36 @@ textarea {
 
 
 .auth-card {
-  background: var(--white);
+  background: #FFFFFF;
   border-radius: var(--radius-xl);
   padding: 44px 40px;
   width: 100%;
   max-width: 460px;
-  box-shadow: var(--shadow-xl);
+  box-shadow: 0 16px 56px rgba(0, 0, 0, 0.18);
   position: relative;
   z-index: 1;
+  color: #181d28; /* Dark text for white card */
+}
+
+/* Ensure labels and titles are dark on the white card */
+.auth-card .auth-title { color: #181d28 !important; }
+.auth-card .auth-subtitle { color: #5c657a !important; }
+.auth-card label { color: #5c657a !important; font-weight: 700; text-transform: uppercase; font-size: 11px; }
+
+[data-theme="dark"] .auth-card {
+  background: rgba(26, 34, 53, 0.9);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .auth-card .auth-title { color: #FFFFFF !important; }
+[data-theme="dark"] .auth-card .auth-subtitle { color: #A0A8B8 !important; }
+[data-theme="dark"] .auth-card label { color: #C5CAD5 !important; }
+[data-theme="dark"] .auth-card .form-input {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #FFFFFF;
 }
 
 .auth-logo {

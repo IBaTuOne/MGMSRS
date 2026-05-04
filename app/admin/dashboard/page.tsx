@@ -18,7 +18,7 @@ export default function AdminDashboardPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [bannedUsers, setBannedUsers] = useState<any[]>([]);
-  const [closedSlots, setClosedSlots] = useState<any>({});
+  const [closedSlots, setClosedSlots] = useState<Record<string, string>>({}); // { "date_hour": "description" }
   
   const [currentWeekMonday, setCurrentWeekMonday] = useState<Date | null>(null);
   const [weekPickerOpen, setWeekPickerOpen] = useState(false);
@@ -41,6 +41,9 @@ export default function AdminDashboardPage() {
 
   // Week transition state
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+
+  // Close Slot Modal State
+  const [closeSlotData, setCloseSlotData] = useState<{ tarih: string, saat: number | null, note: string } | null>(null);
 
   const showToast = (msg: string, type = 'success') => {
     setToast({ msg, type, show: true });
@@ -69,7 +72,7 @@ export default function AdminDashboardPage() {
 
     const promises: any[] = [
       supabase.from('appointments').select('*').gte('tarih', startStr).lte('tarih', endStr),
-      supabase.from('profiles').select('id, ad, soyad, email, telefon, is_banned, ban_reason'),
+      supabase.from('profiles').select('id, ad, soyad, email, telefon, is_banned, ban_reason, banned_at'),
       supabase.from('closed_slots').select('*').gte('tarih', startStr).lte('tarih', endStr)
     ];
 
@@ -79,13 +82,10 @@ export default function AdminDashboardPage() {
     setUsers(usersRes.data || []);
     setBannedUsers((usersRes.data || []).filter((u: any) => u.is_banned));
 
-    const cObj: any = {};
+    const cObj: Record<string, string> = {};
     (closedRes.data || []).forEach((c: any) => {
-      if (c.saat === null) cObj[c.tarih] = 'ALL';
-      else {
-        if (!cObj[c.tarih]) cObj[c.tarih] = [];
-        cObj[c.tarih].push(c.saat);
-      }
+      const key = c.saat === null ? `${c.tarih}_ALL` : `${c.tarih}_${c.saat}`;
+      cObj[key] = c.description || (c.saat === null ? 'GÜN KAPALI' : 'KAPALI');
     });
     setClosedSlots(cObj);
   }, [supabase, router]);
@@ -171,27 +171,28 @@ export default function AdminDashboardPage() {
   const readOnly = isPastWeek();
 
   // Slot checks
-  const isDayClosed = (dateStr: string) => closedSlots[dateStr] === 'ALL';
+  const isDayClosed = (dateStr: string) => !!closedSlots[`${dateStr}_ALL`];
   const isSlotClosedStr = (dateStr: string, hour: number) => {
-    if (!closedSlots[dateStr]) return false;
-    if (closedSlots[dateStr] === 'ALL') return true;
-    return Array.isArray(closedSlots[dateStr]) && closedSlots[dateStr].includes(hour);
+    if (closedSlots[`${dateStr}_ALL`]) return true;
+    return !!closedSlots[`${dateStr}_${hour}`];
+  };
+
+  const getSlotNote = (dateStr: string, hour: number | null) => {
+    if (hour === null) return closedSlots[`${dateStr}_ALL`];
+    return closedSlots[`${dateStr}_ALL`] || closedSlots[`${dateStr}_${hour}`];
   };
 
   // Actions
   const toggleDayClosed = async (dateStr: string) => {
     if (readOnly) return;
-    if (closedSlots[dateStr] === 'ALL') {
+    if (isDayClosed(dateStr)) {
       const { error } = await supabase.rpc('admin_open_day', { target_tarih: dateStr });
       if (error) { showToast('Hata: ' + error.message, 'error'); return; }
       showToast('Gün açıldı.', 'success');
+      await loadData();
     } else {
-      await supabase.rpc('admin_open_day', { target_tarih: dateStr });
-      const { error } = await supabase.rpc('admin_close_slot', { target_tarih: dateStr, target_saat: null });
-      if (error) { showToast('Hata: ' + error.message, 'error'); return; }
-      showToast('Gün kapatıldı.', 'success');
+      setCloseSlotData({ tarih: dateStr, saat: null, note: '' });
     }
-    await loadData();
   };
 
   const toggleSlotClosedAction = async (dateStr: string, hour: number) => {
@@ -201,11 +202,31 @@ export default function AdminDashboardPage() {
       const { error } = await supabase.rpc('admin_open_slot', { target_tarih: dateStr, target_saat: hour });
       if (error) { showToast('Hata: ' + error.message, 'error'); return; }
       showToast('Slot açıldı.', 'success');
+      await loadData();
     } else {
-      const { error } = await supabase.rpc('admin_close_slot', { target_tarih: dateStr, target_saat: hour });
-      if (error) { showToast('Hata: ' + error.message, 'error'); return; }
-      showToast('Slot kapatıldı.', 'success');
+      setCloseSlotData({ tarih: dateStr, saat: hour, note: '' });
     }
+  };
+
+  const confirmCloseSlot = async () => {
+    if (!closeSlotData) return;
+    const { tarih, saat, note } = closeSlotData;
+
+    // Eğer tüm günü kapatıyorsak, önce günü temizleyip sonra null saatli girişi ekliyoruz
+    if (saat === null) {
+      await supabase.rpc('admin_open_day', { target_tarih: tarih });
+    }
+
+    const { error } = await supabase.rpc('admin_close_slot', { 
+      target_tarih: tarih, 
+      target_saat: saat,
+      target_description: note || null
+    });
+
+    if (error) { showToast('Hata: ' + error.message, 'error'); return; }
+    
+    showToast(saat === null ? 'Gün kapatıldı.' : 'Slot kapatıldı.', 'success');
+    setCloseSlotData(null);
     await loadData();
   };
 
@@ -440,7 +461,14 @@ export default function AdminDashboardPage() {
                   const slotClosed = !dayClosed && isSlotClosedStr(dateStr, hour);
                   
                   if (dayClosed) {
-                    return <div key={hour} className="ag-slot-cell"><div className="ag-slot dag-closed" title="Gün kapalı">—</div></div>;
+                    const note = getSlotNote(dateStr, null);
+                    return (
+                      <div key={hour} className="ag-slot-cell">
+                        <div className="ag-slot dag-closed" title={`Gün kapalı: ${note}`}>
+                          <span className="ag-slot-note">{note}</span>
+                        </div>
+                      </div>
+                    );
                   }
 
                   if (appt) {
@@ -461,9 +489,17 @@ export default function AdminDashboardPage() {
                   }
 
                   if (slotClosed) {
+                    const note = getSlotNote(dateStr, hour);
                     return (
                       <div key={hour} className="ag-slot-cell">
-                        <div className="ag-slot ag-slot-closed" onClick={() => toggleSlotClosedAction(dateStr, hour)} style={{ cursor: readOnly ? 'default' : 'pointer' }}>🔒</div>
+                        <div 
+                          className="ag-slot ag-slot-closed" 
+                          onClick={() => toggleSlotClosedAction(dateStr, hour)} 
+                          style={{ cursor: readOnly ? 'default' : 'pointer' }}
+                          title={`Slot kapalı: ${note}`}
+                        >
+                          🔒 <span className="ag-slot-note">{note}</span>
+                        </div>
                       </div>
                     );
                   }
@@ -621,10 +657,46 @@ export default function AdminDashboardPage() {
                       <button className="admin-btn admin-btn-green admin-btn-sm" onClick={() => unbanUser(b.id)}>✅ Yasağı Kaldır</button>
                     </div>
                     <div className="banned-email">{b.email}</div>
-                    <div className="banned-meta">Sebep: {b.ban_reason || 'Belirtilmedi'}</div>
+                    <div className="banned-meta">
+                      Sebep: {b.ban_reason || 'Belirtilmedi'}
+                      {b.banned_at && (
+                        <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '4px' }}>
+                          📅 {new Date(b.banned_at).toLocaleString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} tarihinde yasaklandı.
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- Close Slot Note Modal --- */}
+      {closeSlotData && (
+        <div className="admin-overlay">
+          <div className="admin-modal" style={{ maxWidth: '440px' }}>
+            <button className="admin-modal-close" onClick={() => setCloseSlotData(null)}>✕</button>
+            <h2 className="admin-modal-title">🔒 {closeSlotData.saat === null ? 'Günü Kapat' : 'Slotu Kapat'}</h2>
+            <p className="admin-modal-subtitle">
+              Bu slotu kapatmak üzeresiniz. Bir açıklama veya not ekleyebilirsiniz.
+            </p>
+            <div className="admin-form-group">
+              <label className="admin-form-label">Açıklama / Not (isteğe bağlı)</label>
+              <textarea 
+                className="admin-form-input" 
+                placeholder="Örn: Saha bakımı, Özel etkinlik..." 
+                value={closeSlotData.note} 
+                onChange={e => setCloseSlotData({ ...closeSlotData, note: e.target.value })}
+                rows={3}
+                style={{ resize: 'none' }}
+              />
+            </div>
+
+            <div className="admin-modal-footer">
+              <button className="admin-btn admin-btn-outline" onClick={() => setCloseSlotData(null)}>İptal</button>
+              <button className="admin-btn admin-btn-primary" style={{ width: 'auto', padding: '10px 24px' }} onClick={confirmCloseSlot}>🔒 Kapat</button>
             </div>
           </div>
         </div>
