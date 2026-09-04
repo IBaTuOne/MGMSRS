@@ -10,7 +10,7 @@ MGMSRS, Manavgat Gençlik Merkezi spor sahaları (Basketbol & Voleybol) için ge
 - **Haftalık Takvim:** Pazartesi'den Pazar'a 08:00 - 23:00 arası canlı slot takibi.
 - **Dinamik Branş Seçimi:** Basketbol veya Voleybol için özelleştirilmiş takım listesi girişi.
 - **Gerçek Zamanlı Kilitleme:** Bir kullanıcı randevu alırken, seçtiği slot diğer kullanıcılar için "İşlemde" olarak kilitlenir (Supabase Presence).
-- **Randevu Yönetimi:** Kullanıcılar randevularına 3 saat kalana kadar takım kadrosunu düzenleyebilir, 5 saat kalana kadar iptal edebilir.
+- **Randevu Yönetimi:** Kullanıcılar randevularına 3 saat kalana kadar takım kadrosunu düzenleyebilir ve iptal edebilir.
 - **Gelişmiş Profil:** Kişisel bilgiler ve geçmiş randevu takibi.
 
 ### Admin Paneli (🛡️ Özel Güvenlikli)

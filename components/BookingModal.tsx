@@ -210,7 +210,10 @@ export default function BookingModal({
                   <input type="text" value={user?.ad || ''} readOnly className="form-input readonly" placeholder="Ad" />
                   <input type="text" value={user?.soyad || ''} readOnly className="form-input readonly" placeholder="Soyad" />
                   <input type="text" value={user?.tc_no || ''} readOnly className="form-input readonly" placeholder="T.C. Kimlik" />
-                  <input type="date" value={user?.dogum_tarihi || ''} readOnly className="form-input readonly" />
+                  <div className={`date-input-wrapper ${!user?.dogum_tarihi ? 'empty' : ''}`}>
+                    <input type="date" value={user?.dogum_tarihi || ''} readOnly className="form-input readonly" placeholder="gg/aa/yyyy" />
+                    {!user?.dogum_tarihi && <span className="date-placeholder">gg/aa/yyyy</span>}
+                  </div>
                   <input type="tel" value={user?.telefon || ''} readOnly className="form-input readonly full-width" placeholder="Telefon" />
                 </div>
               </div>
@@ -231,9 +234,12 @@ export default function BookingModal({
                       const val = e.target.value.replace(/\D/g, '').slice(0, 11);
                       const newT = [...teamMembers]; newT[i] = { ...newT[i], tc_no: val }; setTeamMembers(newT); 
                     }} />
-                    <input type="date" placeholder="Doğum Tarihi" value={member.dogum_tarihi} className="form-input" onChange={e => { 
-                      const newT = [...teamMembers]; newT[i] = { ...newT[i], dogum_tarihi: e.target.value }; setTeamMembers(newT); 
-                    }} />
+                    <div className={`date-input-wrapper ${!member.dogum_tarihi ? 'empty' : ''}`}>
+                      <input type="date" placeholder="gg/aa/yyyy" value={member.dogum_tarihi} className="form-input" onChange={e => { 
+                        const newT = [...teamMembers]; newT[i] = { ...newT[i], dogum_tarihi: e.target.value }; setTeamMembers(newT); 
+                      }} />
+                      {!member.dogum_tarihi && <span className="date-placeholder">gg/aa/yyyy</span>}
+                    </div>
                     <input type="tel" placeholder="Telefon 0(5XX)" value={member.telefon} maxLength={11} className="form-input full-width" onChange={e => { 
                       let val = e.target.value.replace(/\D/g, '').slice(0, 11);
                       if(val && !val.startsWith('0')) val = '0' + val.slice(0, 10);

@@ -14,7 +14,7 @@ function isCancellable(tarihStr: string, saatInt: number) {
   const now = new Date();
   const apptDate = new Date(tarihStr);
   apptDate.setHours(saatInt, 0, 0, 0);
-  const cutoff = new Date(apptDate.getTime() - 12 * 60 * 60 * 1000); // 12 saat
+  const cutoff = new Date(apptDate.getTime() - 3 * 60 * 60 * 1000); // 3 saat
   return now < cutoff;
 }
 
@@ -95,7 +95,7 @@ export default function MyAppointmentsModal({
 
   const handleCancelClick = (appt: any) => {
     if (!isCancellable(appt.tarih, appt.saat)) {
-      showToast('Randevuya 12 saatten az kaldığı için iptal edilemez!', 'error');
+      showToast('Randevuya 3 saatten az kaldığı için iptal edilemez!', 'error');
       return;
     }
     setConfirmingId(appt.id);
@@ -173,7 +173,7 @@ export default function MyAppointmentsModal({
                       ) : (
                         <>
                           <div style={{ fontSize: '12px', color: 'var(--gray-600)', marginBottom: '12px', padding: '10px 12px', background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: '8px' }}>
-                            ℹ️ <strong>Bilgi:</strong> Randevunuza son <strong>12 saat</strong> kalana kadar iptal işlemi yapabilir, son <strong>3 saat</strong> kalana kadar takım kadronuzu düzenleyebilirsiniz.
+                            ℹ️ <strong>Bilgi:</strong> Randevunuza son <strong>3 saat</strong> kalana kadar iptal işlemi yapabilir veya takım kadronuzu düzenleyebilirsiniz.
                           </div>
                           <div className="randevu-actions">
                             {isEditable(a.tarih, a.saat) ? (
@@ -184,7 +184,7 @@ export default function MyAppointmentsModal({
                             {isCancellable(a.tarih, a.saat) ? (
                               <button className="btn-randevu-cancel" onClick={() => handleCancelClick(a)}>🗑️ İptal Et</button>
                             ) : (
-                              <button className="btn-randevu-cancel" disabled style={{ opacity: 0.5, cursor: 'not-allowed' }} title="Son 12 saat — iptal kilitlendi">🔒 İptal Süresi Doldu</button>
+                              <button className="btn-randevu-cancel" disabled style={{ opacity: 0.5, cursor: 'not-allowed' }} title="Son 3 saat — iptal kilitlendi">🔒 İptal Süresi Doldu</button>
                             )}
                           </div>
                         </>

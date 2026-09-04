@@ -1279,6 +1279,39 @@ textarea {
   grid-column: 1 / -1;
 }
 
+.date-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.date-input-wrapper .form-input {
+  width: 100%;
+  min-height: 42px;
+}
+
+.date-input-wrapper .date-placeholder {
+  position: absolute;
+  left: 14px;
+  color: var(--gray-400);
+  font-size: 14px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.date-input-wrapper:focus-within .date-placeholder {
+  display: none;
+}
+
+.date-input-wrapper.empty input[type="date"]::-webkit-datetime-edit {
+  display: none;
+}
+
+.date-input-wrapper.empty input[type="date"]:focus::-webkit-datetime-edit {
+  display: block;
+}
+
 .row-owner {
   border-color: var(--red);
   background: var(--red-soft);
