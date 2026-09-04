@@ -1298,6 +1298,7 @@ textarea {
   font-size: 14px;
   pointer-events: none;
   user-select: none;
+  z-index: 2;
 }
 
 .date-input-wrapper:focus-within .date-placeholder {
