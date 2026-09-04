@@ -1306,11 +1306,16 @@ textarea {
 }
 
 .date-input-wrapper.empty input[type="date"]::-webkit-datetime-edit {
-  display: none;
+  opacity: 0;
 }
 
 .date-input-wrapper.empty input[type="date"]:focus::-webkit-datetime-edit {
-  display: block;
+  opacity: 1;
+}
+
+.date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  margin-left: auto;
 }
 
 .row-owner {
