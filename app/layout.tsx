@@ -5,8 +5,21 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "MGMSRS - GSB Gençlik Merkezi",
-  description: "Manavgat Gençlik Merkezi Saha Randevu Sistemi",
+  title: "Manavgat Gençlik Merkezi",
+  description: "Saha Randevu Sistemi MGMSRS",
+  applicationName: "MGMSRS",
+  openGraph: {
+    title: "Manavgat Gençlik Merkezi",
+    description: "Saha Randevu Sistemi MGMSRS",
+    siteName: "MGMSRS",
+    locale: "tr_TR",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Manavgat Gençlik Merkezi",
+    description: "Saha Randevu Sistemi MGMSRS",
+  },
 };
 
 import { ThemeProvider } from "@/components/ThemeProvider";

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { TURKISH_DAYS, TURKISH_MONTHS, formatDate, getCurrentWeekMonday, getActiveWeekMonday, isWeekTransitionPreview, getWeekDaysFromMonday, formatSlotTimeRange, formatSlotStartHour } from '@/utils/constants';
 import { useRouter } from 'next/navigation';
@@ -21,6 +21,12 @@ export default function AdminDashboardPage() {
   const [closedSlots, setClosedSlots] = useState<Record<string, string>>({}); // { "date_hour": "description" }
   
   const [currentWeekMonday, setCurrentWeekMonday] = useState<Date | null>(null);
+  const currentWeekMondayRef = useRef<Date | null>(null);
+  currentWeekMondayRef.current = currentWeekMonday;
+
+  const [weekLoading, setWeekLoading] = useState(false);
+  const [earliestDate, setEarliestDate] = useState<string | null>(null);
+
   const [weekPickerOpen, setWeekPickerOpen] = useState(false);
   const [dragApptId, setDragApptId] = useState<string | null>(null);
 
@@ -67,6 +73,49 @@ export default function AdminDashboardPage() {
     setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3500);
   };
 
+  const loadWeekData = useCallback(async (monday: Date) => {
+    const startStr = formatDate(monday);
+    const sunday = new Date(monday);
+    sunday.setDate(sunday.getDate() + 6);
+    const endStr = formatDate(sunday);
+
+    setWeekLoading(true);
+    try {
+      const [apptsRes, closedRes] = await Promise.all([
+        supabase.from('appointments').select('*').gte('tarih', startStr).lte('tarih', endStr),
+        supabase.from('closed_slots').select('*').gte('tarih', startStr).lte('tarih', endStr)
+      ]);
+
+      if (apptsRes.data) {
+        setAppointments(prev => {
+          const others = prev.filter(a => a.tarih < startStr || a.tarih > endStr);
+          return [...others, ...apptsRes.data];
+        });
+      }
+
+      if (closedRes.data) {
+        setClosedSlots(prev => {
+          const next = { ...prev };
+          const weekDays = getWeekDaysFromMonday(monday);
+          weekDays.forEach(d => {
+            const dStr = formatDate(d);
+            delete next[`${dStr}_ALL`];
+            HOURS.forEach(h => delete next[`${dStr}_${h}`]);
+          });
+          closedRes.data.forEach((c: any) => {
+            const key = c.saat === null ? `${c.tarih}_ALL` : `${c.tarih}_${c.saat}`;
+            next[key] = c.description || (c.saat === null ? 'GÜN KAPALI' : 'KAPALI');
+          });
+          return next;
+        });
+      }
+    } catch (err) {
+      console.error('Haftalık veri yükleme hatası:', err);
+    } finally {
+      setWeekLoading(false);
+    }
+  }, [supabase]);
+
   const loadData = useCallback(async () => {
     // Auth Check
     const { data: { session } } = await supabase.auth.getSession();
@@ -81,31 +130,41 @@ export default function AdminDashboardPage() {
       return;
     }
 
-    const now = new Date();
-    const pastDate = new Date(now); pastDate.setDate(now.getDate() - 30);
-    const futureDate = new Date(now); futureDate.setDate(now.getDate() + 60);
-    const startStr = formatDate(pastDate);
-    const endStr = formatDate(futureDate);
+    // Profiles & Banned Users
+    const { data: usersData } = await supabase
+      .from('profiles')
+      .select('id, ad, soyad, email, telefon, tc_no, dogum_tarihi, is_banned, ban_reason, banned_at');
 
-    const promises: any[] = [
-      supabase.from('appointments').select('*').gte('tarih', startStr).lte('tarih', endStr),
-      supabase.from('profiles').select('id, ad, soyad, email, telefon, tc_no, dogum_tarihi, is_banned, ban_reason, banned_at'),
-      supabase.from('closed_slots').select('*').gte('tarih', startStr).lte('tarih', endStr)
-    ];
+    setUsers(usersData || []);
+    setBannedUsers((usersData || []).filter((u: any) => u.is_banned));
 
-    const [apptsRes, usersRes, closedRes] = await Promise.all(promises);
+    // Earliest dates query to support navigating to all past weeks
+    try {
+      const [earliestApptRes, earliestClosedRes] = await Promise.all([
+        supabase.from('appointments').select('tarih').order('tarih', { ascending: true }).limit(1).maybeSingle(),
+        supabase.from('closed_slots').select('tarih').order('tarih', { ascending: true }).limit(1).maybeSingle()
+      ]);
 
-    setAppointments(apptsRes.data || []);
-    setUsers(usersRes.data || []);
-    setBannedUsers((usersRes.data || []).filter((u: any) => u.is_banned));
+      const dates: string[] = [];
+      if (earliestApptRes.data?.tarih) dates.push(earliestApptRes.data.tarih);
+      if (earliestClosedRes.data?.tarih) dates.push(earliestClosedRes.data.tarih);
+      if (dates.length > 0) {
+        dates.sort();
+        setEarliestDate(dates[0]);
+      }
+    } catch (e) {
+      console.error('En eski kayıt sorgulama hatası:', e);
+    }
 
-    const cObj: Record<string, string> = {};
-    (closedRes.data || []).forEach((c: any) => {
-      const key = c.saat === null ? `${c.tarih}_ALL` : `${c.tarih}_${c.saat}`;
-      cObj[key] = c.description || (c.saat === null ? 'GÜN KAPALI' : 'KAPALI');
-    });
-    setClosedSlots(cObj);
-  }, [supabase, router]);
+    const targetMonday = currentWeekMondayRef.current || getActiveWeekMonday();
+    await loadWeekData(targetMonday);
+  }, [supabase, router, loadWeekData]);
+
+  // Load week data dynamically when currentWeekMonday changes
+  useEffect(() => {
+    if (!currentWeekMonday) return;
+    loadWeekData(currentWeekMonday);
+  }, [currentWeekMonday, loadWeekData]);
 
   useEffect(() => {
     loadData();
@@ -205,6 +264,30 @@ export default function AdminDashboardPage() {
     users.forEach(u => { map[u.id] = u; });
     return map;
   }, [users]);
+
+  // Geçmiş tüm haftaları kapsayacak hafta sayısı hesabı (en az 52 hafta / 1 tam yıl, veritabanındaki en eski kayda kadar)
+  const pastWeeksCount = useMemo(() => {
+    const activeMonday = getActiveWeekMonday();
+    let minDate = new Date(activeMonday);
+    minDate.setDate(minDate.getDate() - 52 * 7); // Varsayılan en az 52 hafta (1 yıl)
+
+    if (earliestDate) {
+      const parts = earliestDate.split('-');
+      if (parts.length === 3) {
+        const earliest = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        if (!isNaN(earliest.getTime()) && earliest < minDate) {
+          minDate = earliest;
+        }
+      }
+    }
+
+    const earliestMonday = getCurrentWeekMonday(minDate);
+    const diffMs = activeMonday.getTime() - earliestMonday.getTime();
+    const weeks = Math.max(52, Math.ceil(diffMs / (7 * 24 * 60 * 60 * 1000)));
+    return weeks;
+  }, [earliestDate]);
+
+  const totalWeeksCount = pastWeeksCount + 2; // +1 gelecek hafta, 0 bu hafta, -1..-N geçmiş haftalar
 
   if (!currentWeekMonday) return null;
 
@@ -1092,32 +1175,64 @@ export default function AdminDashboardPage() {
               className={`admin-week-label-btn ${currentWeekMonday && currentWeekMonday > getActiveWeekMonday() ? 'future-week' : ''}`} 
               onClick={() => setWeekPickerOpen(!weekPickerOpen)}
             >
-              {weekLabel} <span className="wp-arrow">▾</span>
+              {weekLabel} {weekLoading && <span style={{ fontSize: '12px', opacity: 0.8, marginLeft: '4px' }}>⏳</span>} <span className="wp-arrow">▾</span>
             </button>
             {weekPickerOpen && (
               <div className="week-picker-dropdown" style={{ display: 'block' }}>
-                {Array.from({ length: 14 }, (_, i) => {
-                  const offsetWeeks = i - 12; // -12 to +1
-                  const m = new Date(getActiveWeekMonday());
-                  m.setDate(m.getDate() + offsetWeeks * 7);
-                  const sd = getWeekDaysFromMonday(m)[0];
-                  const ed = getWeekDaysFromMonday(m)[6];
-                  const isCurrent = currentWeekMonday && formatDate(m) === formatDate(currentWeekMonday);
-                  
-                  let labelText = `${sd.getDate()} ${TURKISH_MONTHS[sd.getMonth()]} - ${ed.getDate()} ${TURKISH_MONTHS[ed.getMonth()]} ${ed.getFullYear()}`;
-                  if (offsetWeeks === 1) labelText += ' (Gelecek Hafta)';
-                  else if (offsetWeeks === 0) labelText += ' (Bu Hafta)';
+                <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', marginBottom: '6px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--gray-400)', marginBottom: '4px', fontWeight: 600 }}>
+                    📅 Belirli Bir Tarihe Git
+                  </div>
+                  <input 
+                    type="date" 
+                    className="admin-form-input" 
+                    style={{ width: '100%', padding: '6px 10px', fontSize: '12px' }}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const parts = e.target.value.split('-');
+                        if (parts.length === 3) {
+                          const picked = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                          if (!isNaN(picked.getTime())) {
+                            const m = getCurrentWeekMonday(picked);
+                            const maxMonday = getActiveWeekMonday();
+                            maxMonday.setDate(maxMonday.getDate() + 7);
+                            if (m > maxMonday) {
+                              showToast('En fazla 1 hafta ileriye gidebilirsiniz.', 'error');
+                              return;
+                            }
+                            setCurrentWeekMonday(m);
+                            setWeekPickerOpen(false);
+                          }
+                        }
+                      }
+                    }}
+                  />
+                </div>
+                <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
+                  {Array.from({ length: totalWeeksCount }, (_, i) => {
+                    const offsetWeeks = 1 - i; // +1: Gelecek Hafta, 0: Bu Hafta, -1..-N: Geçmiş Haftalar
+                    const m = new Date(getActiveWeekMonday());
+                    m.setDate(m.getDate() + offsetWeeks * 7);
+                    const sd = getWeekDaysFromMonday(m)[0];
+                    const ed = getWeekDaysFromMonday(m)[6];
+                    const isCurrent = currentWeekMonday && formatDate(m) === formatDate(currentWeekMonday);
+                    
+                    let labelText = `${sd.getDate()} ${TURKISH_MONTHS[sd.getMonth()]} - ${ed.getDate()} ${TURKISH_MONTHS[ed.getMonth()]} ${ed.getFullYear()}`;
+                    if (offsetWeeks === 1) labelText += ' (Gelecek Hafta)';
+                    else if (offsetWeeks === 0) labelText += ' (Bu Hafta)';
 
-                  return (
-                    <div 
-                      key={i} 
-                      className={`wp-item ${isCurrent ? 'wp-active' : ''}`}
-                      onClick={() => { setCurrentWeekMonday(m); setWeekPickerOpen(false); }}
-                    >
-                      <span>{labelText}</span>
-                    </div>
-                  );
-                })}
+                    return (
+                      <div 
+                        key={offsetWeeks} 
+                        className={`wp-item ${isCurrent ? 'wp-active' : ''}`}
+                        onClick={() => { setCurrentWeekMonday(m); setWeekPickerOpen(false); }}
+                      >
+                        <span>{labelText}</span>
+                        {isCurrent && <span className="wp-badge">Seçili</span>}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -1137,7 +1252,7 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      <div className="admin-grid-wrapper">
+      <div className="admin-grid-wrapper" style={{ opacity: weekLoading ? 0.6 : 1, transition: 'opacity 0.2s' }}>
         <div className="admin-grid">
           {readOnly && (
             <div style={{ padding: '9px 20px', fontSize: '12px', fontWeight: 600, background: 'rgba(71,85,105,0.2)', color: 'var(--gray-400)', borderBottom: '1px solid var(--border)' }}>
